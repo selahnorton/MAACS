@@ -1,0 +1,232 @@
+---
+title: "Homework 2 Report"
+output: html_document
+---
+
+
+## Name
+
+Selah Norton
+
+### Setup
+
+Read in the data with `read_csv()` and store the data as an R object named `dataset`. Check the data to make sure all of the expected observations and variables are there.
+
+
+```{r}
+# Load necessary packages
+library(tidyverse)
+library(ggplot2)
+library(patchwork)
+# Load the data
+dataset <- read_csv('maacs.csv.gz')
+# Check the data to ensure all expected observations and variables are there
+head(dataset)
+```
+
+## Part 1
+
+We will first consider the relationship between FEV1 and age. In general, it is expected that as children get older (and hence, larger in size), their FEV1 values should get higher. 
+
+Consider the statement "FEV1 values in children are higher in older children relative to younger children". 
+
+Write a function in R that takes the `dataset` object as an argument and returns `TRUE` if the statement above is true for the dataset and `FALSE` otherwise. 
+
+NOTE: In order to write this function, you will need to translate the statement above into something that can be checked with the data. There are many ways in which you can do that translation correctly and you only need to pick one way here. 
+
+NOTE: For this part, do not use any plots.
+
+```{r}
+## Write your function here
+statement1 <- function(dataset){
+  # Remove observations without fev1 values
+  dataset <- dataset %>% drop_na(fev1)
+  # Find median age to divide the two groups
+  median_age <- median(dataset$age)
+  dataset <- dataset %>%
+    # Categorize ages into young or old
+    mutate(age_group = ifelse(age<=median_age, "young", "old")) %>%
+    group_by(age_group) %>%
+    # Find mean fev1 value of each group
+    summarize(avg_fev1 = mean(fev1))
+  # If statement to see if the statement is true that values are higher in 
+  # older children
+  if (dataset$avg_fev1[dataset$age_group == "old"] > 
+      dataset$avg_fev1[dataset$age_group == "young"]) {
+    return(TRUE)
+  } else {
+    return(FALSE)
+  }
+}
+statement1(dataset)
+```
+
+
+## Part 2
+
+Fit a linear regression model with FEV1 as the outcome and age as a predictor.
+
+How much does FEV1 change for a 1-year increase in the child's age? 
+
+```{r}
+# Create linear regression model
+model <- lm(fev1 ~ age, data=dataset)
+# Extract coefficients
+coef(model)
+```
+The coefficient for the age predictor is 0.171. This means that the model
+predicts as the child age increases by one year, their FEV1 would also increase 
+by 0.171 liters. 
+
+
+## Part 3
+
+Develop **three** supporting premises derived from the data that support the statement you wrote in Part 2. These can be plots, other summary statistics, or model results. 
+
+NOTE: 
+
+* At least one supporting premise should use a plot.
+
+* Do not use the code you write in Part 1 as a supporting premise
+
+```{r}
+# Remove observations without fev1 values
+dataset <- dataset %>% drop_na(fev1) 
+# Find median age to divide the two groups
+median_age <- median(dataset$age)
+# Categorize ages into young or old
+dataset_group <- dataset %>%
+  mutate(age_group = ifelse(age<=median_age, "young", "old"))
+```
+
+
+Write the three supporting premise statements here:
+
+1. The plot of age versus FEV1, shows a positive correlation. 
+
+2. The coefficient for age in the linear regression model regressing age on FEV1
+is statistically significant. 
+
+3. The box plot of FEV1 value of the younger age group has a lower median than
+that of the older age group and the box plot are symmetric. 
+
+
+## Part 4
+
+For each of the supporting premises above, write a function that takes the `dataset` object as an argument and returns `TRUE` if the supporting premise statement above is true for the dataset and `FALSE` otherwise. 
+
+For statements involving plots, instead of returning `TRUE` or `FALSE`, you function should do two things:
+
+1. Produce the plot that is used in the statement
+
+2. Produce a hypothetical version of the plot in the event that the statement is true. This can be done using simulated data or by simply hand drawing a plot.
+
+
+```{r}
+## Function for supporting premise statement 1
+supporting1 <- function(dataset) {
+# Produce scatterplot in the statement 
+p1 <- dataset %>%
+  ggplot(aes(x=age, y=fev1)) +
+  geom_point() +
+  # Set breaks, limits, labels to match on both graphs
+  scale_x_continuous(
+    breaks=c(0,8,12,16),
+    name = 'Age') +
+  scale_y_continuous(
+    limits=c(0,5),
+    name = 'FEV1 (liters)') +
+  # Label plot
+  labs(title = 'Actual Data')
+# Set seed for consistency 
+set.seed(1221)
+# Generate simulated data
+x <- rnorm(150, 11, 2.5)
+y <- 0.25*x - 2.5 + rnorm(150, mean = 2, sd = 0.3) 
+# Produce simulated plot in the statement
+p2<- tibble(x = x, y = y) %>%
+  ggplot(aes(x, y)) +
+  geom_point() +
+  scale_x_continuous(
+    breaks=c(0,8,12,16),
+    name = 'Age') +
+  scale_y_continuous(
+    limits=c(0,5),
+    name = 'FEV1 (liters)') +
+  # Label plot
+  labs(title = 'Simulated Data')
+# Combine plots to be directly compared
+p1|p2
+}
+```
+
+
+```{r}
+## Function for supporting premise statement 2
+supporting2 <- function(model){
+  # Extract significance of age coefficient
+  sig_age <- summary(model)$coefficients[1, "Pr(>|t|)"]
+  # Set significance level and check to see if this meets that
+  if (sig_age >= 0.95) {
+    return(TRUE)
+  } else {
+    return(FALSE)
+  }
+}
+```
+
+
+```{r}
+## Function for supporting premise statement 3
+supporting3 <- function(dataset_group) {
+# Produce box plot in the statement 
+p1 <- dataset_group %>%
+  # Reorder x axis so lower fev1 group is on the left
+  ggplot(aes(x=reorder(age_group, fev1), y=fev1)) +
+  geom_boxplot() +
+  # Label x and y axis
+  scale_x_discrete(name='Age Group') +
+  scale_y_continuous(name='FEV1 (liters)') +
+  # Label plot
+  labs(title = 'Actual Data')
+# Set seed for consistency 
+set.seed(128)
+# Generate simulated data
+x <- rbinom(150, 1, 0.5)
+y <- x -0.25 + rnorm(150, mean = 2, sd = 0.4)
+# Produce simulated plot in the statement
+p2<- tibble(x = x, y = y) %>%
+  mutate(x = factor(x)) %>%
+  ggplot(aes(x, y)) +
+  geom_boxplot() +
+  # Label x and y axis to match actual graph
+  scale_x_discrete(name='Age Group',
+                   labels= c('young', 'old')) +
+  scale_y_continuous(name='FEV1 (liters)',
+                     breaks= c(1,2,3,4,5),
+                     limits = c(1,5)) +
+  # Label plot
+  labs(title = 'Simulated Data')
+# Combine plots to be directly compared
+p1|p2
+}
+```
+
+Execute each of your function and show that the produce the expected output.
+
+```{r}
+supporting1(dataset)
+supporting2(model)
+supporting3(dataset_group)
+```
+
+
+## Part 5
+
+Describe one alternative to the primary statement "FEV1 values in children are higher in older children relative to younger children". 
+
+Create a fault tree for the alternative outcome describing how the alternative outcome could be realized in the data even if the primary statement were true.
+
+Your fault tree should be created as a separate image and does not need to be created in R. Upload the image of the fault tree to Canvas.
+
+
